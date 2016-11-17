@@ -4,10 +4,22 @@
 #include <utility/imumaths.h>
 #include <math.h>
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
- float theta_x;
- int Rw= 0.03;
- int Rb=0.11;
- int Rc=0.11;
+
+
+
+
+float psi_1;
+float psi_2;
+float psi_3;
+
+ int Rw= 0.03; //radio de las ruedas
+ int Rb=0.11; // radio de la bola
+ int Rc=0.11; // radio del cuerpo
+ float Rmotor= 2.4; //Ohm Resistencia interna del motor
+ float Kmotor= 0.3306     //Nm/A Constante de flujo del motor
+ float phi_xdeseado=0.000;
+ float phi_ydeseado=0.000;
+ 
  
  
  //Declaracion de los pines
@@ -63,12 +75,70 @@ void setup(void)
   
   Serial.begin(9600);
   Serial.println("Orientation Sensor Test"); Serial.println("");
-  
+  timer=millis();
   //Ganancias del controlador LQR
 float K11=-210.0060,  K12=-52.4385, K13=0.0000,   K14=,0.0000  K15= -0.2205,  K16= -0.3190, K17= 1.9596,  K18=  2.2787 ,K19=  -0.0000,K110=-0.0000;
 float K21=105.0033,   K22=26.2193,K23=-181.8708,  K24=-45.4131, K25=-0.2205,  K26=-0.3190,   K27=-0.9798,   K28=-1.1394 ,   K29=1.6971 ,  K210= 1.9734;
 float K31=105.0033,   K32=26.2193, K33=181.8708,  K34=45.4131 ,  K35=-0.2205,   K36-0.3190 ,  K37=-0.9798 ,  K38=-1.1394,   K39=-1.6971 ,  K310=-1.9734;
-  /* Initialise the sensor */
+
+
+//Ecuaciones del controladorLQR
+
+long GetLQRTorque1 (float theta_x,float dtheta_x,float theta_y,float dtheta_y,float theta_z,float dtheta_z, float phi_x,float dphi_x, float phi_y, float dphi_y ,int Xdeseadp,int Ydeseado){
+
+  return (-K11*theta_x-K12*dtheta_x-K13*theta_y+ -K14*dtheta_y -K15*theta_z-K16*dtheta_z +K17*(phi_xdeseado-phi_x)-K18*dphi_x+K19*(phi_ydeseado-phi_y)-K110*dphi_y);
+
+
+}
+
+long GetLQRTorque2 (float theta_x,float dtheta_x,float theta_y,float dtheta_y,float theta_z,float dtheta_z, float phi_x,float dphi_x, float phi_y, float dphi_y ){
+
+  return (-K21*theta_x-K22*dtheta_x-K23*theta_y- K24*dtheta_y -K25*theta_z-K26*dtheta_z +K27*(phi_xdeseado-phi_x)-K28*dphi_x+K29*(phi_ydeseado-phi_y)-K210*dphi_y);
+
+
+}
+long GetLQRTorque3(float theta_x,float dtheta_x,float theta_y,float dtheta_y,float theta_z,float dtheta_z, float phi_x,float dphi_x, float phi_y, float dphi_y ){
+
+  return (-K31*theta_x-K32*dtheta_x-K33*theta_y- K34*dtheta_y -K35*theta_z-K36*dtheta_z +K37*(phi_xdeseado-phi_x)-K38*dphi_x+K39*(phi_ydeseado-phi_y)-K310*dphi_y);
+
+
+}
+//Funcion para transformar torques deseados a voltajes
+float TorqueAPWMDeseado1(GetLQRTorque1, float OmegaMotor1){
+
+  float CorrienteDeseada1= GetLQRTorque1/Kmotor;
+  float VoltDeseado1= CorrienteDeseada1*Rmotor + OmegaMotor1*KMotor;
+  int pwmDeseado1= VoltDeseado1*9.0/255;
+  return constrain (pwmDeseado1,0,255);
+
+}
+
+float TorqueAPWMDeseado1(GetLQRTorque1, float OmegaMotor1){
+
+  float CorrienteDeseada1= GetLQRTorque1/Kmotor;
+  float VoltDeseado1= CorrienteDeseada1*Rmotor + OmegaMotor1*KMotor;
+  int pwmDeseado1= VoltDeseado1*9.0/255;
+  return constrain (pwmDeseado1,0,255);
+
+}
+float TorqueAPWMDeseado2(GetLQRTorque2, float OmegaMotor2){
+
+  float CorrienteDeseada2= GetLQRTorque2/Kmotor;
+  float VoltDeseado2= CorrienteDeseada2*Rmotor + OmegaMotor2*KMotor;
+  int pwmDeseado2= VoltDeseado2*9.0/255;
+  return constrain (pwmDeseado2,0,255);
+
+}
+
+float TorqueAPWMDeseado3(GetLQRTorque3, float OmegaMotor1){
+
+  float CorrienteDeseada3= GetLQRTorque3/Kmotor;
+  float VoltDeseado3= CorrienteDeseada3*Rmotor + OmegaMotor3*KMotor;
+  int pwmDeseado3= VoltDeseado3*9.0/255;
+  return constrain (pwmDeseado3,0,255);
+
+}
+/* Initialise the sensor */
   if(!bno.begin())
   {
     /* There was a problem detecting the BNO055 ... check your connections */
@@ -85,10 +155,12 @@ void loop(void)
 {
   /* Get a new sensor event */ 
   sensors_event_t event; 
-  bno.getEvent(&event);
-  
-  
-  imu::Vector<3> gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+  bno.getEvent(&event);  // Interrupciones para giroscopio y acelerometro
+   imu::Vector<3> gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+   
+   //Obtener datos de encoders
+   
+   
   
 
 //Definicion de estados
@@ -103,7 +175,7 @@ float dtheta_z=gyro.z
 
 float dphi_x= cos(theta_y)*(dtheta_x - dtheta_z*sin(theta_y) + (2^(1/2)*(Rw*dpsi2 - 2*Rw*dpsi1 + Rw*dpsi3))/(3*Rb)) + sin(theta_x)*sin(theta_y)*(dtheta_y*cos(theta_x) + dtheta_z*cos(theta_y)*sin(theta_x) - (2^(1/2)*3^(1/2)*(Rw*dpsi2 - Rw*dpsi3))/(3*Rb)) + cos(theta_x)*sin(theta_y)*((2^(1/2)*(Rw*dpsi1 + Rw*dpsi2 + Rw*dpsi3))/(3*Rb) - dtheta_y*sin(theta_x) + dtheta_z*cos(theta_x)*cos(theta_y))
 float dphi_y=  cos(theta_x)*(dtheta_y*cos(theta_x) + dtheta_z*cos(theta_y)*sin(theta_x) - (2^(1/2)*3^(1/2)*(Rw*dpsi2 - Rw*dpsi3))/(3*Rb)) - sin(theta_x)*((2^(1/2)*(Rw*dpsi1 + Rw*dpsi2 + Rw*dpsi3))/(3*Rb) - dtheta_y*sin(theta_x) + dtheta_z*cos(theta_x)*cos(theta_y))
-float dphi_z=  cos(theta_x)*cos(theta_y)*((2^(1/2)*(Rw*dpsi1 + Rw*dpsi2 + Rw*dpsi3))/(3*Rb) - dtheta_y*sin(theta_x) + dtheta_z*cos(theta_x)*cos(theta_y)) - sin(theta_y)*(dtheta_x - dtheta_z*sin(theta_y) + (2^(1/2)*(Rw*dpsi2 - 2*Rw*dpsi1 + Rw*dpsi3))/(3*Rb)) + cos(theta_y)*sin(theta_x)*(dtheta_y*cos(theta_x) + dtheta_z*cos(theta_y)*sin(theta_x) - (2^(1/2)*3^(1/2)*(Rw*dpsi2 - Rw*dpsi3))/(3*Rb))
+//float dphi_z=  cos(theta_x)*cos(theta_y)*((2^(1/2)*(Rw*dpsi1 + Rw*dpsi2 + Rw*dpsi3))/(3*Rb) - dtheta_y*sin(theta_x) + dtheta_z*cos(theta_x)*cos(theta_y)) - sin(theta_y)*(dtheta_x - dtheta_z*sin(theta_y) + (2^(1/2)*(Rw*dpsi2 - 2*Rw*dpsi1 + Rw*dpsi3))/(3*Rb)) + cos(theta_y)*sin(theta_x)*(dtheta_y*cos(theta_x) + dtheta_z*cos(theta_y)*sin(theta_x) - (2^(1/2)*3^(1/2)*(Rw*dpsi2 - Rw*dpsi3))/(3*Rb))
 
 Serial.print("X: ");
 Serial.print(gyro.x());
