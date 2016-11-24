@@ -1,4 +1,5 @@
-#include <Dagu3Motor.h>
+#include <Dagu4Motor.h>
+#include <Encoder.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
@@ -13,23 +14,23 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 #define RadToDeg(x) ((x)*57.2957795131) //Conversion radianes a grados 
  //2pi/6533
 //inicializacion de variables
-float psi_1=0;
-float psi_2=0;
-float psi_3=0;
+float psi_1=0.0;
+float psi_2=0.0;
+float psi_3=0.0;
 
-float dpsi_1=0;
-float dpsi_2=0;
-float dpsi_3=0;
+float dpsi_1=0.0;
+float dpsi_2=0.0;
+float dpsi_3=0.0;
 
-float phi_x=0;
-float phi_y=0;
-float phi_z=0;
+float phi_x=0.0;
+float phi_y=0.0;
+float phi_z=0.0;
 
 
 
-float dphi_x=0;
-float dphi_y=0;
-float dphi_z=0;
+float dphi_x=0.0;
+float dphi_y=0.0;
+float dphi_z=0.0;
 
 double raiz2= sqrt(2);
 double raiz3=sqrt(3);
@@ -38,7 +39,9 @@ double raiz3=sqrt(3);
  double Rc=0.11; // radio del cuerpo
  float Rmotor= 2.4; //Ohm Resistencia interna del motor
  float KMotor= 0.3306;     //Nm/A Constante de flujo del motor
- 
+ int pin1;
+ int pin2;
+ int pin3;
  
  int CURRENT_LIMIT = (1024 / 5) * 3.75; 
  
@@ -91,9 +94,9 @@ volatile int encoder3Pos=0;
 //Uso de libreria del controlador de los motores Dagu
  
 
-Dagu3Motor motor1(Pin_PWM_Motor1, Pin_Dir_Motor1, Corriente_Motor1); 
-Dagu3Motor motor2(Pin_PWM_Motor2, Pin_Dir_Motor2, Corriente_Motor2); 
-Dagu3Motor motor3(Pin_PWM_Motor3, Pin_Dir_Motor3, Corriente_Motor3); 
+Dagu4Motor motor1(Pin_PWM_Motor1, Pin_Dir_Motor1, Corriente_Motor1,PinAEncoderMotor1,PinBEncoderMotor1); 
+Dagu4Motor motor2(Pin_PWM_Motor2, Pin_Dir_Motor2, Corriente_Motor2,PinAEncoderMotor2,PinBEncoderMotor2); 
+Dagu4Motor motor3(Pin_PWM_Motor3, Pin_Dir_Motor3, Corriente_Motor3,PinAEncoderMotor3,PinBEncoderMotor3); 
 
 long timer=0; //timer de proposito general
 long timer_old;
@@ -144,7 +147,7 @@ void setup()
     while(1);
   }
   
-  delay(1000);
+  delay(100);
     
   bno.setExtCrystalUse(true);
   attachInterrupt(0,doEncoder1,CHANGE); // Manejo Interrupcion encoder 1
@@ -206,7 +209,14 @@ float TorqueAPWMDeseado1(float Torque1, float OmegaMotor1){
   float CorrienteDeseada1= Torque1/KMotor;
   float VoltDeseado1= CorrienteDeseada1*Rmotor + OmegaMotor1*KMotor;
   int pwmDeseado1= (VoltDeseado1*255)/9.0;
-  return constrain (pwmDeseado1,0,255);
+ if (pwmDeseado1>=255){
+  pwmDeseado1=255;
+  }
+  if(pwmDeseado1<=-255){
+     pwmDeseado1=-255;
+  }
+  return (abs(pwmDeseado1));
+
 
 }
 float TorqueAPWMDeseado2(float Torque2, float OmegaMotor2){
@@ -214,13 +224,13 @@ float TorqueAPWMDeseado2(float Torque2, float OmegaMotor2){
   float CorrienteDeseada2= Torque2/KMotor;
   float VoltDeseado2= CorrienteDeseada2*Rmotor + OmegaMotor2*KMotor;
   int pwmDeseado2= (VoltDeseado2*255)/9.0;
-  if (pwmDeseado2>255){
-  pwmDeseado2==255;
+  if (pwmDeseado2>=255){
+  pwmDeseado2=255;
   }
-  if(pwmDeseado2<-255){
-     pwmDeseado2==-255;
+  if(pwmDeseado2<=-255){
+     pwmDeseado2=-255;
   }
-  return (pwmDeseado2);
+  return (abs(pwmDeseado2));
 
 }
 
@@ -229,7 +239,13 @@ float TorqueAPWMDeseado3(float Torque3, float OmegaMotor3){
   float CorrienteDeseada3= Torque3/KMotor;
   float VoltDeseado3= CorrienteDeseada3*Rmotor + OmegaMotor3*KMotor;
   int pwmDeseado3= (VoltDeseado3*255)/9.0;
-  return constrain (pwmDeseado3,0,255);
+ if (pwmDeseado3>=255){
+  pwmDeseado3=255;
+  }
+  if(pwmDeseado3<=-255){
+     pwmDeseado3=-255;
+  }
+  return (abs(pwmDeseado3));
 
 }
 
@@ -255,9 +271,9 @@ void loop()
     
   timer_old = timer;
    timer=millis();
-   float dpsi_1= (TicksToRad(encoder1Pos)-lastPsi1)/G_Dt;
-float dps_2= (TicksToRad(encoder2Pos)-lastPsi2)/G_Dt;
-float dps_3= (TicksToRad(encoder3Pos)-lastPsi3)/G_Dt;
+dpsi_1= (TicksToRad(encoder1Pos)-lastPsi1)/G_Dt;
+dpsi_2= (TicksToRad(encoder2Pos)-lastPsi2)/G_Dt;
+dpsi_3= (TicksToRad(encoder3Pos)-lastPsi3)/G_Dt;
    if (timer>timer_old){
       G_Dt = (timer-timer_old)/1000.0;    // Real time of loop run. We use this on the DCM algorithm (gyro integration time)
     }
@@ -314,12 +330,21 @@ float dphi_y=  cos(theta_x)*(dtheta_y*cos(theta_x) + dtheta_z*cos(theta_y)*sin(t
 //Serial.print("velocidad: ");
 //Serial.print(dpsi_1);
 
-Serial.print ("Dir1:");
-Serial.print(digitalRead(22));
-Serial.print ("Dir2:");
-Serial.print(digitalRead(24));
-Serial.print ("Dir3:");
-Serial.print(digitalRead(26));
+//Serial.print ("dpsi_1:");
+//Serial.print("  ");
+//Serial.print(dpsi_1);
+//Serial.print(" ");
+//Serial.print ("dpsi_2:");
+//Serial.print(" ");
+//Serial.print(dpsi_2);
+//Serial.print(" ");
+//Serial.print ("dpsi_3:");
+//Serial.print(" ");
+//Serial.print(dpsi_3);
+//Serial.print(" ");
+//Serial.print ("dphi_y:");
+//Serial.print("  ");
+//Serial.print(dphi_y);
 //Serial.print(" x1: ");
 //Serial.print(-K_11*theta_x);
 //Serial.print(" x2: ");
@@ -340,7 +365,7 @@ Serial.print(digitalRead(26));
 //Serial.print(K_19*(phi_ydeseado-phi_y));
 //Serial.print("x10: ");
 //Serial.print(-K_110*dphi_y);
-Serial.println("");
+//Serial.println("");
 //Serial.print(" Z: ");
 //Serial.print(euler.z());
 //Serial.println("");
@@ -374,24 +399,30 @@ PWM3=TorqueAPWMDeseado3(T3,dpsi_3);
 
 
 // señal de control a motores (direccion y velocidad)
-if (PWM1>=0){
+if (T1>=0){
 motor1.setMotorDirection(false);
+pin1=0;
 }
 else {
+pin1=1;
 motor1.setMotorDirection(true);
 
 }
-if (PWM2>=0){
+if (T2>=0){
+  pin2=0;
 motor2.setMotorDirection(false);
 }
 else {
-motor2.setMotorDirection(false);
+  pin2=1;
+motor2.setMotorDirection(true);
 
 }
-if (PWM3>=0){
+if (T3>=0){
+  pin3=0;
 motor3.setMotorDirection(true);
 }
 else {
+  pin3=1;
 motor3.setMotorDirection(false);
 
 }
